@@ -1,0 +1,22 @@
+
+syntax = "proto3";
+
+service OmniShiftService {
+
+ rpc Shift (ShiftRequest) returns (ShiftResponse);
+
+}
+
+message ShiftRequest {
+
+ string inputFormat = 1;
+ string outputFormat = 2;
+ string payload = 3;
+
+}
+
+message ShiftResponse {
+
+ string result = 1;
+
+}
