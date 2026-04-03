@@ -7,6 +7,8 @@ public enum OmniNull implements OmniNode {
      */
     INSTANCE; // Esta é a única instância (O Singleton perfeito do Java)
 
+    public static OmniNull getInstance() { return INSTANCE;}
+
     @Override
     public NodeType getType() {
         return NodeType.NULL;
