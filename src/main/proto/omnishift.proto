@@ -1,22 +1,26 @@
-
 syntax = "proto3";
 
-service OmniShiftService {
+// Configurações para gerar o código Java
+option java_multiple_files = true;
+option java_package = "br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated";
+option java_outer_classname = "OmniShiftProto";
 
- rpc Shift (ShiftRequest) returns (ShiftResponse);
+package omnishift;
 
+// O nosso serviço (A Porta de Entrada)
+service ShiftService {
+  // Recebe um request e devolve um response de forma síncrona (Unary RPC)
+  rpc ShiftData (ShiftGrpcRequest) returns (ShiftGrpcResponse);
 }
 
-message ShiftRequest {
-
- string inputFormat = 1;
- string outputFormat = 2;
- string payload = 3;
-
+// O envelope de entrada (Equivalente ao nosso ShiftRequest DTO, mas em Protobuf)
+message ShiftGrpcRequest {
+  string source_format = 1;
+  string target_format = 2;
+  string raw_payload = 3;
 }
 
-message ShiftResponse {
-
- string result = 1;
-
+// O envelope de saída
+message ShiftGrpcResponse {
+  string converted_payload = 1;
 }
