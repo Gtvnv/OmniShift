@@ -5,6 +5,7 @@ import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.genera
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftGrpcResponse;
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftServiceGrpc;
 import br.com.github.gtvnv.omnishift.application.usecase.ShiftDataUseCase;
+import br.com.github.gtvnv.omnishift.infrastructure.security.PayloadValidator;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
@@ -20,9 +21,11 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
 
     private static final Logger log = LoggerFactory.getLogger(GrpcShiftInboundAdapter.class);
     private final ShiftDataUseCase shiftDataUseCase;
+    private final PayloadValidator payloadValidator;
 
-    public GrpcShiftInboundAdapter(ShiftDataUseCase shiftDataUseCase) {
+    public GrpcShiftInboundAdapter(ShiftDataUseCase shiftDataUseCase, PayloadValidator payloadValidator) {
         this.shiftDataUseCase = shiftDataUseCase;
+        this.payloadValidator = payloadValidator;
     }
 
     @Override
@@ -31,6 +34,9 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
                 grpcRequest.getSourceFormat(), grpcRequest.getTargetFormat());
 
         try {
+            // 0. Sanitização de conteúdo: rejeita payloads acima do limite antes de qualquer parsing
+            payloadValidator.validate(grpcRequest.getRawPayload());
+
             // 1. Mapeamos o Request do gRPC para o nosso DTO de Domínio
             ShiftRequest internalRequest = new ShiftRequest(
                     grpcRequest.getRawPayload(),

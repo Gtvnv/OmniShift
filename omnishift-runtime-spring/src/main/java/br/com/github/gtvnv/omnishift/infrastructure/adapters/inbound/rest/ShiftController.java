@@ -2,6 +2,7 @@ package br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.rest;
 
 import br.com.github.gtvnv.omnishift.application.dto.ShiftRequest;
 import br.com.github.gtvnv.omnishift.application.usecase.ShiftDataUseCase;
+import br.com.github.gtvnv.omnishift.infrastructure.security.PayloadValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -14,9 +15,11 @@ public class ShiftController {
 
     private static final Logger log = LoggerFactory.getLogger(ShiftController.class);
     private final ShiftDataUseCase shiftDataUseCase;
+    private final PayloadValidator payloadValidator;
 
-    public ShiftController(ShiftDataUseCase shiftDataUseCase) {
+    public ShiftController(ShiftDataUseCase shiftDataUseCase, PayloadValidator payloadValidator) {
         this.shiftDataUseCase = shiftDataUseCase;
+        this.payloadValidator = payloadValidator;
     }
 
     @PostMapping
@@ -25,6 +28,9 @@ public class ShiftController {
             @RequestHeader("X-Target-Format") String targetFormat,
             @RequestHeader(value = "X-Mapping-Profile", required = false) String mappingProfile,
             @RequestBody String rawPayload) {
+
+        // 0. Sanitização de conteúdo: rejeita payloads acima do limite antes de qualquer parsing
+        payloadValidator.validate(rawPayload);
 
         // 1. Sanitização para evitar Log Forging (remove quebras de linha e limita tamanho)
         String safeSource = sanitizeHeaderInput(sourceFormat, 20);

@@ -2,6 +2,7 @@ package br.com.github.gtvnv.omnishift.infrastructure.adapters.outbound.json;
 
 import br.com.github.gtvnv.omnishift.domain.model.*;
 import br.com.github.gtvnv.omnishift.domain.ports.DataParser;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -16,6 +17,11 @@ public class JacksonJsonParser implements DataParser {
     // Construtor sem argumentos exigido pelo java.util.ServiceLoader (descoberta via SPI)
     public JacksonJsonParser() {
         this.objectMapper = new ObjectMapper();
+
+        // Limite explícito de profundidade de aninhamento, como defesa em profundidade
+        // contra payloads profundamente aninhados (evita depender do default implícito).
+        this.objectMapper.getFactory().setStreamReadConstraints(
+                StreamReadConstraints.builder().maxNestingDepth(500).build());
     }
 
     @Override

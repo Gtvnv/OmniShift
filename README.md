@@ -214,6 +214,13 @@ Sem o header/campo, o comportamento é o mesmo de sempre: só conversão de form
 ## 🛡️ Segurança e Tratamento de Erros
 A API conta com um GlobalExceptionHandler configurado para mascarar rastros de infraestrutura interna (evitando stack traces na resposta), além de proteção contra ataques de Reflected XSS e Log Forging na camada de roteamento REST.
 
+### Sanitização de conteúdo
+
+* **Limite de tamanho**: `PayloadValidator` rejeita (`400 Bad Request` / `INVALID_ARGUMENT`) qualquer payload acima de 1.000.000 caracteres, tanto no REST quanto no gRPC, antes de qualquer parsing.
+* **XXE (XML External Entity)**: o adapter XML desabilita DTD por completo no `XMLInputFactory` usado pelo Jackson — bloqueia tanto entidades externas (leitura de arquivos locais/SSRF) quanto expansão de entidade interna ("billion laughs").
+* **Profundidade de aninhamento**: os três adapters (JSON/XML/YAML) configuram `StreamReadConstraints` com limite explícito de 500 níveis, para não depender do default implícito do Jackson e evitar `StackOverflowError` em payloads profundamente aninhados.
+* **Follow-up conhecido, não implementado**: o SnakeYAML por trás do adapter YAML tem proteção própria contra expansão de alias/anchor ("YAML bomb", `LoaderOptions.setMaxAliasesForCollections`) que ainda não foi configurada explicitamente aqui.
+
 ---
 
  

@@ -2,9 +2,13 @@ package br.com.github.gtvnv.omnishift.infrastructure.adapters.outbound.xml;
 
 import br.com.github.gtvnv.omnishift.domain.model.*;
 import br.com.github.gtvnv.omnishift.domain.ports.DataParser;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.dataformat.xml.XmlFactory;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLOutputFactory;
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.Map;
@@ -14,9 +18,19 @@ public class JacksonXmlParser implements DataParser {
     private final XmlMapper xmlMapper;
 
     public JacksonXmlParser() {
-        // Diferente do ObjectMapper padrão, nós instanciamos o XmlMapper explicitamente
-        // para garantir que ele esteja configurado apenas para as regras de XML.
-        this.xmlMapper = new XmlMapper();
+        // Previne XXE (XML External Entity): desliga DTD por completo, o que bloqueia
+        // tanto entidades externas quanto expansão de entidade interna ("billion laughs").
+        XMLInputFactory xmlInputFactory = XMLInputFactory.newFactory();
+        xmlInputFactory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+        xmlInputFactory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+
+        XmlFactory xmlFactory = new XmlFactory(xmlInputFactory, XMLOutputFactory.newInstance());
+        this.xmlMapper = new XmlMapper(xmlFactory);
+
+        // Limite explícito de profundidade de aninhamento, como defesa em profundidade
+        // contra payloads profundamente aninhados (evita depender do default implícito).
+        this.xmlMapper.getFactory().setStreamReadConstraints(
+                StreamReadConstraints.builder().maxNestingDepth(500).build());
     }
 
     @Override
