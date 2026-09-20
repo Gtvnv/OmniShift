@@ -1,4 +1,4 @@
-# OmniShift 🔄
+# OmniShift (motor de Orquestração de dados) 🔄
 
 > **Universal Data Transformation Engine**
 > Uma iniciativa [ZenithCode](https://github.com/gtvnv) mantida pela divisão P.O.N.T.E.
