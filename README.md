@@ -25,6 +25,7 @@ O projeto é organizado como um multi-módulo Maven, para que o núcleo de domí
 | `omnishift-grpc-api` | Contrato gRPC (`.proto`) e stubs gerados — reutilizável por clientes em qualquer linguagem que fale Protobuf. | — |
 | `omnishift-adapter-json` | `DataParser`/`DataSerializer` de JSON via Jackson. | `omnishift-core` |
 | `omnishift-adapter-xml` | `DataParser`/`DataSerializer` de XML via Jackson. | `omnishift-core` |
+| `omnishift-adapter-yaml` | `DataParser`/`DataSerializer` de YAML via Jackson. | `omnishift-core` |
 | `omnishift-runtime-spring` | Runtime executável: expõe o core via REST e gRPC (Spring Boot), montando os adapters descobertos automaticamente. | todos acima |
 
 Os adapters de formato **não são referenciados por nome** em nenhum lugar do código central: eles se registram via [Java SPI](https://docs.oracle.com/javase/tutorial/ext/basics/spi.html) (`META-INF/services`) e são descobertos em tempo de execução por `ParserFactory.discover()`/`SerializerFactory.discover()`.
@@ -149,6 +150,35 @@ Content-Type: text/plain
     "status": "ativo"
   }
 }
+```
+
+---
+
+### Exemplo 3: Conversão JSON ➡️ YAML
+
+* **Requisição**:
+```http
+POST /api/v1/shift HTTP/1.1
+Host: localhost:8080
+X-Source-Format: JSON
+X-Target-Format: YAML
+Content-Type: text/plain
+
+{
+  "usuario": {
+    "nome": "Gustavo Tavera",
+    "idade": 20,
+    "divisao": "P.O.N.T.E"
+  }
+}
+```
+
+### Resposta
+```yaml
+usuario:
+  nome: "Gustavo Tavera"
+  idade: 20
+  divisao: "P.O.N.T.E"
 ```
 
 ---
