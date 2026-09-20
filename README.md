@@ -218,7 +218,22 @@ O `/api/v1/shift` lê o corpo da requisição e escreve a resposta diretamente c
 
 **Limites conhecidos, documentados de propósito**:
 * A árvore `OmniNode` ainda é totalmente montada em memória entre o parse e a serialização — a transformação/mapeamento atua sobre a árvore completa, não campo a campo em streaming real. O ganho aqui é eliminar as cópias extras em `String` de cada lado, não reescrever o motor para processamento incremental.
-* O **gRPC continua não-streaming**: a RPC `ShiftData` é unária, e o próprio protocolo já buffereia a mensagem inteira antes de entregá-la ao handler. Streaming de verdade ali exigiria mudar o contrato `.proto` para uma RPC de streaming — fica como trabalho futuro.
+
+---
+
+## ⚡ Streaming (gRPC)
+
+A RPC unária `ShiftData` continua exatamente como está (payloads pequenos, clientes simples). Para payloads grandes existe agora `ShiftDataStream`, uma RPC **bidirecional**: o cliente envia o payload em pedaços, o servidor devolve o resultado convertido também em pedaços. As duas RPCs convivem — nenhuma quebra a outra.
+
+**Motivo de existir**: o gRPC tem um limite padrão de ~4MB por mensagem. Como `ShiftGrpcRequest`/`ShiftGrpcResponse` carregam o payload inteiro num único campo `string`, qualquer payload acima de ~4MB **falha categoricamente** hoje via `ShiftData`, independente de heap disponível. `ShiftDataStream` existe para contornar esse limite de tamanho de mensagem — não é streaming incremental campo-a-campo (mesmo limite de `OmniNode` em memória do REST, acima).
+
+**Contrato de `ShiftDataStream`**:
+1. A **primeira** mensagem enviada pelo cliente deve ser `ShiftGrpcRequestChunk.metadata` (`source_format`/`target_format`/`mapping_profile` opcional) — igual aos headers/campos das outras APIs.
+2. As mensagens seguintes devem ser `ShiftGrpcRequestChunk.data_chunk`, com pedaços do payload bruto, em qualquer tamanho (recomendado ~256KB–1MB por pedaço, para ficar confortavelmente abaixo do limite padrão de ~4MB/mensagem do gRPC).
+3. Ao fechar o stream de envio, o servidor processa o payload acumulado e devolve o resultado convertido como um ou mais `ShiftGrpcResponseChunk.data_chunk` (pedaços de 256KB), seguido do fechamento do stream de resposta.
+4. Erros de contrato (pedaço de dado antes da metadata, metadata duplicada, nenhuma metadata enviada, formato inválido, perfil inexistente) encerram o stream com `INVALID_ARGUMENT`, igual à RPC unária.
+
+**Limite de tamanho**: o payload total do streaming pode chegar a 50MB (bem acima do 1MB da RPC unária/REST), ainda finito porque o `OmniNode` é montado inteiro em memória antes de serializar.
 
 ---
 

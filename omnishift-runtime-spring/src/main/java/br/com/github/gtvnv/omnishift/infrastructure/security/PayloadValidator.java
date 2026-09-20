@@ -3,6 +3,7 @@ package br.com.github.gtvnv.omnishift.infrastructure.security;
 
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,6 +12,11 @@ import java.io.InputStream;
 public class PayloadValidator {
 
  private static final int MAX_SIZE = 1000000;
+
+ // Bem acima do cap acima (que existe para manter REST/gRPC unário pequenos por natureza),
+ // mas ainda finito: o OmniNode é montado inteiro em memória antes de serializar, então um
+ // cliente mal-intencionado ainda poderia esgotar heap sem algum limite no streaming gRPC.
+ private static final long MAX_STREAMING_SIZE = 50_000_000;
 
  public void validate(String payload){
 
@@ -29,6 +35,37 @@ public class PayloadValidator {
   */
  public InputStream limit(InputStream input) {
   return new BoundedInputStream(input, MAX_SIZE);
+ }
+
+ /**
+  * Versão "push" do limite de tamanho, para o streaming gRPC: os pedaços chegam via
+  * callbacks (onNext) conforme a rede entrega, não como um InputStream de leitura sob
+  * demanda — por isso um acumulador em vez de reaproveitar o BoundedInputStream acima.
+  */
+ public ChunkedPayloadAccumulator newStreamingAccumulator() {
+  return new ChunkedPayloadAccumulator(MAX_STREAMING_SIZE);
+ }
+
+ public static final class ChunkedPayloadAccumulator {
+
+  private final long maxBytes;
+  private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+
+  private ChunkedPayloadAccumulator(long maxBytes) {
+   this.maxBytes = maxBytes;
+  }
+
+  public void append(byte[] chunk) {
+   if (buffer.size() + chunk.length > maxBytes) {
+    throw new IllegalArgumentException(
+            "Payload em streaming excede o tamanho máximo permitido (" + maxBytes + " bytes)");
+   }
+   buffer.writeBytes(chunk);
+  }
+
+  public byte[] toByteArray() {
+   return buffer.toByteArray();
+  }
  }
 
  private static final class BoundedInputStream extends FilterInputStream {

@@ -43,4 +43,22 @@ class PayloadValidatorTest {
 
         assertThrows(IllegalArgumentException.class, limited::readAllBytes);
     }
+
+    @Test
+    void chunkedPayloadAccumulatorAceitaPedacosDentroDoLimite() {
+        PayloadValidator.ChunkedPayloadAccumulator accumulator = validator.newStreamingAccumulator();
+
+        accumulator.append("parte1".getBytes(StandardCharsets.UTF_8));
+        accumulator.append("parte2".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals("parte1parte2", new String(accumulator.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void chunkedPayloadAccumulatorLancaQuandoPedacosExcedemLimite() {
+        PayloadValidator.ChunkedPayloadAccumulator accumulator = validator.newStreamingAccumulator();
+        accumulator.append(new byte[25_000_000]);
+
+        assertThrows(IllegalArgumentException.class, () -> accumulator.append(new byte[25_000_001]));
+    }
 }
