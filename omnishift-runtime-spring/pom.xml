@@ -53,6 +53,12 @@
             <artifactId>grpc-server-spring-boot-starter</artifactId>
             <version>${grpc.spring.boot.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

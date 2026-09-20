@@ -10,6 +10,7 @@ import br.com.github.gtvnv.omnishift.domain.ports.DataSerializer;
 import br.com.github.gtvnv.omnishift.domain.ports.MappingProfileRepository;
 import br.com.github.gtvnv.omnishift.domain.service.TransformationEngine;
 
+import java.io.InputStream;
 import java.util.List;
 
 /**
@@ -72,5 +73,34 @@ public class ShiftDataUseCase {
 
         // 5. Converter o Modelo Canônico para o formato final desejado e retornar
         return serializer.serialize(transformedData);
+    }
+
+    /**
+     * Variante em streaming de parse+transformação: lê de um InputStream em vez de
+     * uma String já inteira em memória. Separada da serialização de propósito — ver
+     * {@link #resolveSerializer(String)} — para que erros de entrada (formato inválido,
+     * payload malformado, perfil inexistente) aconteçam antes de qualquer escrita de saída.
+     */
+    public OmniNode parseAndTransform(InputStream rawPayload, String sourceFormat, List<FieldMapping> mappings) {
+        DataParser parser = parserFactory.getParser(sourceFormat);
+        OmniNode canonicalData = parser.parse(rawPayload);
+        return transformationEngine.transform(canonicalData, mappings);
+    }
+
+    /**
+     * Como {@link #parseAndTransform(InputStream, String, List)}, mas resolvendo os
+     * FieldMapping a partir de um perfil nomeado (ver MappingProfileRepository).
+     */
+    public OmniNode parseAndTransformWithProfile(InputStream rawPayload, String sourceFormat, String profileName) {
+        List<FieldMapping> mappings = mappingProfileRepository.findByName(profileName);
+        return parseAndTransform(rawPayload, sourceFormat, mappings);
+    }
+
+    /**
+     * Resolve o serializer do formato de destino sem ainda escrever nada — permite ao
+     * chamador validar o formato (e falhar cedo) antes de iniciar uma resposta em streaming.
+     */
+    public DataSerializer resolveSerializer(String targetFormat) {
+        return serializerFactory.getSerializer(targetFormat);
     }
 }

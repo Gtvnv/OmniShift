@@ -12,8 +12,13 @@ import br.com.github.gtvnv.omnishift.domain.ports.DataSerializer;
 import br.com.github.gtvnv.omnishift.domain.ports.MappingProfileRepository;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,6 +32,8 @@ class ShiftDataUseCaseTest {
 
     // Parser/serializer de teste: evitam depender de um adapter real de formato
     // (JSON/XML vivem em outros módulos, indisponíveis para omnishift-core).
+    // Implementam tanto o caminho String quanto o de InputStream/OutputStream, para
+    // exercitar de verdade a variante em streaming do ShiftDataUseCase.
     private static final DataParser FAKE_PARSER = new DataParser() {
         @Override
         public OmniNode parse(String payload) {
@@ -37,7 +44,12 @@ class ShiftDataUseCaseTest {
 
         @Override
         public OmniNode parse(InputStream inputStream) {
-            throw new UnsupportedOperationException("não usado neste teste");
+            try {
+                inputStream.readAllBytes(); // consome o stream, prova que a integração é real
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return parse("ignorado");
         }
 
         @Override
@@ -54,7 +66,11 @@ class ShiftDataUseCaseTest {
 
         @Override
         public void serialize(OmniNode node, OutputStream outputStream) {
-            throw new UnsupportedOperationException("não usado neste teste");
+            try {
+                outputStream.write(describe(node).getBytes(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         @Override
@@ -111,5 +127,37 @@ class ShiftDataUseCaseTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> useCase.executeWithProfile(request, "naoExiste"));
+    }
+
+    @Test
+    void parseAndTransformAplicaMappingsAPartirDeUmInputStream() {
+        ShiftDataUseCase useCase = newUseCase(MappingProfileRepository.none());
+        InputStream input = new ByteArrayInputStream("qualquerPayload".getBytes(StandardCharsets.UTF_8));
+
+        OmniNode result = useCase.parseAndTransform(input, FORMAT, List.of(new FieldMapping("nome", "fullName")));
+
+        assertEquals("Tavera", ((OmniValue) result.asObject().get("fullName")).getValue());
+    }
+
+    @Test
+    void resolveSerializerEscreveNoOutputStream() {
+        ShiftDataUseCase useCase = newUseCase(MappingProfileRepository.none());
+        InputStream input = new ByteArrayInputStream("qualquerPayload".getBytes(StandardCharsets.UTF_8));
+        OmniNode node = useCase.parseAndTransform(input, FORMAT, List.of());
+
+        DataSerializer serializer = useCase.resolveSerializer(FORMAT);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        serializer.serialize(node, output);
+
+        assertEquals("nome=Tavera", output.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void parseAndTransformWithProfilePerfilInexistenteLancaIllegalArgumentException() {
+        ShiftDataUseCase useCase = newUseCase(MappingProfileRepository.none());
+        InputStream input = new ByteArrayInputStream("qualquerPayload".getBytes(StandardCharsets.UTF_8));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> useCase.parseAndTransformWithProfile(input, FORMAT, "naoExiste"));
     }
 }

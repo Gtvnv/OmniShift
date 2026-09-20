@@ -211,6 +211,16 @@ Sem o header/campo, o comportamento é o mesmo de sempre: só conversão de form
 
 ---
 
+## ⚡ Streaming (REST)
+
+O `/api/v1/shift` lê o corpo da requisição e escreve a resposta diretamente como fluxo de bytes (`InputStream`/`OutputStream`), em vez de materializar o payload inteiro como `String` em memória antes de processar — o mesmo contrato HTTP de sempre (headers, corpo cru), só que sem o gargalo de memória em payloads grandes. O limite de tamanho (`PayloadValidator`) é aplicado durante a leitura do stream, não sobre uma string já pronta, então funciona mesmo com `Transfer-Encoding: chunked`.
+
+**Limites conhecidos, documentados de propósito**:
+* A árvore `OmniNode` ainda é totalmente montada em memória entre o parse e a serialização — a transformação/mapeamento atua sobre a árvore completa, não campo a campo em streaming real. O ganho aqui é eliminar as cópias extras em `String` de cada lado, não reescrever o motor para processamento incremental.
+* O **gRPC continua não-streaming**: a RPC `ShiftData` é unária, e o próprio protocolo já buffereia a mensagem inteira antes de entregá-la ao handler. Streaming de verdade ali exigiria mudar o contrato `.proto` para uma RPC de streaming — fica como trabalho futuro.
+
+---
+
 ## 🛡️ Segurança e Tratamento de Erros
 A API conta com um GlobalExceptionHandler configurado para mascarar rastros de infraestrutura interna (evitando stack traces na resposta), além de proteção contra ataques de Reflected XSS e Log Forging na camada de roteamento REST.
 
