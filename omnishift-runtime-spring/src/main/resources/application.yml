@@ -1,6 +1,19 @@
 
 server:
-  port: 9090
+  port: 8080
+
+# grpc.server.port tem seu próprio default (9090) independente de server.port (REST) —
+# antes esta chave estava ausente e server.port também apontava para 9090, então REST e
+# gRPC disputavam a mesma porta na inicialização. Deixado explícito aqui de propósito.
+grpc:
+  server:
+    port: 9090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics, prometheus
 
 # Perfis de mapeamento nomeados: o cliente referencia só o "nome-do-perfil"
 # (header X-Mapping-Profile no REST, campo mapping_profile no gRPC) — a definição

@@ -3,6 +3,7 @@ package br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc;
 import br.com.github.gtvnv.omnishift.application.factory.ParserFactory;
 import br.com.github.gtvnv.omnishift.application.factory.SerializerFactory;
 import br.com.github.gtvnv.omnishift.application.usecase.ShiftDataUseCase;
+import br.com.github.gtvnv.omnishift.domain.ports.MetricsRecorder;
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftGrpcRequestChunk;
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftGrpcResponseChunk;
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftGrpcStreamMetadata;
@@ -32,9 +33,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class GrpcShiftInboundAdapterTest {
 
+    private final FakeMetricsRecorder metricsRecorder = new FakeMetricsRecorder();
     private final GrpcShiftInboundAdapter adapter = new GrpcShiftInboundAdapter(
             new ShiftDataUseCase(ParserFactory.discover(), SerializerFactory.discover()),
-            new PayloadValidator());
+            new PayloadValidator(),
+            metricsRecorder);
 
     @Test
     void streamJsonParaXmlComPayloadDivididoEmVariosChunks() {
@@ -52,6 +55,11 @@ class GrpcShiftInboundAdapterTest {
         assertNull(responseObserver.error);
         assertFalse(responseObserver.chunks.isEmpty());
         assertTrue(concatenarChunks(responseObserver.chunks).contains("<nome>Tavera</nome>"));
+
+        assertEquals(1, metricsRecorder.recordings.size());
+        assertTrue(metricsRecorder.recordings.get(0).success());
+        assertEquals("JSON", metricsRecorder.recordings.get(0).sourceFormat());
+        assertEquals("XML", metricsRecorder.recordings.get(0).targetFormat());
     }
 
     @Test
@@ -63,6 +71,8 @@ class GrpcShiftInboundAdapterTest {
 
         assertNotNull(responseObserver.error);
         assertEquals(Status.INVALID_ARGUMENT.getCode(), Status.fromThrowable(responseObserver.error).getCode());
+        assertEquals(1, metricsRecorder.recordings.size());
+        assertFalse(metricsRecorder.recordings.get(0).success());
     }
 
     @Test
@@ -74,6 +84,8 @@ class GrpcShiftInboundAdapterTest {
 
         assertNotNull(responseObserver.error);
         assertEquals(Status.INVALID_ARGUMENT.getCode(), Status.fromThrowable(responseObserver.error).getCode());
+        assertEquals(1, metricsRecorder.recordings.size());
+        assertFalse(metricsRecorder.recordings.get(0).success());
     }
 
     @Test
@@ -86,6 +98,8 @@ class GrpcShiftInboundAdapterTest {
 
         assertNotNull(responseObserver.error);
         assertEquals(Status.INVALID_ARGUMENT.getCode(), Status.fromThrowable(responseObserver.error).getCode());
+        assertEquals(1, metricsRecorder.recordings.size());
+        assertFalse(metricsRecorder.recordings.get(0).success());
     }
 
     private static ShiftGrpcRequestChunk metadataChunk(String source, String target, String profile) {
@@ -110,6 +124,17 @@ class GrpcShiftInboundAdapterTest {
             out.writeBytes(chunk.getDataChunk().toByteArray());
         }
         return out.toString(StandardCharsets.UTF_8);
+    }
+
+    private static final class FakeMetricsRecorder implements MetricsRecorder {
+        record Recording(String sourceFormat, String targetFormat, long durationNanos, boolean success) { }
+
+        final List<Recording> recordings = new ArrayList<>();
+
+        @Override
+        public void recordConversion(String sourceFormat, String targetFormat, long durationNanos, boolean success) {
+            recordings.add(new Recording(sourceFormat, targetFormat, durationNanos, success));
+        }
     }
 
     private static final class FakeResponseObserver implements StreamObserver<ShiftGrpcResponseChunk> {

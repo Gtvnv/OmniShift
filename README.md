@@ -237,6 +237,24 @@ A RPC unária `ShiftData` continua exatamente como está (payloads pequenos, cli
 
 ---
 
+## 📊 Observabilidade
+
+O runtime expõe o [Spring Boot Actuator](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html) com [Micrometer](https://micrometer.io/), em `/actuator/health`, `/actuator/metrics` e `/actuator/prometheus` (porta 8080, junto com o REST).
+
+**Métrica principal**: `omnishift.conversions` (um `Timer`, não um `Counter` separado — a mesma convenção do `http.server.requests` do próprio Spring) dá contagem e latência juntos:
+* `omnishift_conversions_seconds_count` / `..._sum` no formato Prometheus.
+* Tags: `source_format`, `target_format`, `outcome` (`success`/`error`).
+
+Gravada nos três canais de entrada (REST, gRPC unário, gRPC streaming) no ponto onde cada um já sabe formato de origem/destino e sucesso-ou-falha — não dentro de `ShiftDataUseCase` (que ficaria com uma métrica cruzando canais com formatos de chamada diferentes só para carregar uma tag).
+
+**Limite de escopo, documentado de propósito**: para REST e `ShiftDataStream`, a métrica cobre parse+transform+resolução do serializer — não inclui a escrita final do stream de saída (que não pode falhar por causa de input do usuário, por design das Fases 6/7). Para a RPC unária `ShiftData`, cobre a conversão completa, porque ali é tudo um método só.
+
+A porta de observabilidade (`MetricsRecorder`, em `omnishift-core/domain/ports`) segue o mesmo padrão já usado para `MappingProfileRepository`: interface livre de framework no core, implementação real (`MicrometerMetricsRecorder`) em `omnishift-runtime-spring`.
+
+**Nota de correção**: `application.yml` tinha `server.port: 9090`, o que colidia com a porta padrão do próprio gRPC (também 9090, já que `grpc.server.port` nunca tinha sido definido explicitamente) — REST e gRPC disputavam a mesma porta na inicialização. Corrigido nesta fase: REST volta para 8080 (default do Spring Boot), gRPC fica explícito em 9090.
+
+---
+
 ## 🛡️ Segurança e Tratamento de Erros
 A API conta com um GlobalExceptionHandler configurado para mascarar rastros de infraestrutura interna (evitando stack traces na resposta), além de proteção contra ataques de Reflected XSS e Log Forging na camada de roteamento REST.
 

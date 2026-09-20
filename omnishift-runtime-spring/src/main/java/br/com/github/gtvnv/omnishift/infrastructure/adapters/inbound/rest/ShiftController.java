@@ -3,6 +3,7 @@ package br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.rest;
 import br.com.github.gtvnv.omnishift.application.usecase.ShiftDataUseCase;
 import br.com.github.gtvnv.omnishift.domain.model.OmniNode;
 import br.com.github.gtvnv.omnishift.domain.ports.DataSerializer;
+import br.com.github.gtvnv.omnishift.domain.ports.MetricsRecorder;
 import br.com.github.gtvnv.omnishift.infrastructure.security.PayloadValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -23,10 +24,13 @@ public class ShiftController {
     private static final Logger log = LoggerFactory.getLogger(ShiftController.class);
     private final ShiftDataUseCase shiftDataUseCase;
     private final PayloadValidator payloadValidator;
+    private final MetricsRecorder metricsRecorder;
 
-    public ShiftController(ShiftDataUseCase shiftDataUseCase, PayloadValidator payloadValidator) {
+    public ShiftController(ShiftDataUseCase shiftDataUseCase, PayloadValidator payloadValidator,
+                            MetricsRecorder metricsRecorder) {
         this.shiftDataUseCase = shiftDataUseCase;
         this.payloadValidator = payloadValidator;
+        this.metricsRecorder = metricsRecorder;
     }
 
     @PostMapping
@@ -53,13 +57,25 @@ public class ShiftController {
         // stream (não upfront), então funciona mesmo sem Content-Length confiável.
         InputStream limitedPayload = payloadValidator.limit(request.getInputStream());
 
-        OmniNode canonicalData = hasMappingProfile
-                ? shiftDataUseCase.parseAndTransformWithProfile(limitedPayload, safeSource, safeProfile)
-                : shiftDataUseCase.parseAndTransform(limitedPayload, safeSource, List.of());
+        long start = System.nanoTime();
+        OmniNode canonicalData;
+        DataSerializer serializer;
+        try {
+            canonicalData = hasMappingProfile
+                    ? shiftDataUseCase.parseAndTransformWithProfile(limitedPayload, safeSource, safeProfile)
+                    : shiftDataUseCase.parseAndTransform(limitedPayload, safeSource, List.of());
 
-        // Resolve o serializer (e falha cedo se o formato de destino não existir) antes
-        // de começar a escrever a resposta — depois disso não dá mais para trocar o status.
-        DataSerializer serializer = shiftDataUseCase.resolveSerializer(safeTarget);
+            // Resolve o serializer (e falha cedo se o formato de destino não existir) antes
+            // de começar a escrever a resposta — depois disso não dá mais para trocar o status.
+            serializer = shiftDataUseCase.resolveSerializer(safeTarget);
+
+            // Métrica cobre parse+transform+resolução do serializer, não a escrita final do
+            // stream de saída abaixo (que não pode falhar por causa de input do usuário).
+            metricsRecorder.recordConversion(safeSource, safeTarget, System.nanoTime() - start, true);
+        } catch (RuntimeException e) {
+            metricsRecorder.recordConversion(safeSource, safeTarget, System.nanoTime() - start, false);
+            throw e;
+        }
 
         log.info("Conversao concluida com sucesso para o formato: {}", safeTarget);
 

@@ -3,6 +3,7 @@ package br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc;
 import br.com.github.gtvnv.omnishift.application.dto.ShiftRequest;
 import br.com.github.gtvnv.omnishift.domain.model.OmniNode;
 import br.com.github.gtvnv.omnishift.domain.ports.DataSerializer;
+import br.com.github.gtvnv.omnishift.domain.ports.MetricsRecorder;
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftGrpcRequest;
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftGrpcRequestChunk;
 import br.com.github.gtvnv.omnishift.infrastructure.adapters.inbound.grpc.generated.ShiftGrpcResponse;
@@ -33,10 +34,13 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
     private static final Logger log = LoggerFactory.getLogger(GrpcShiftInboundAdapter.class);
     private final ShiftDataUseCase shiftDataUseCase;
     private final PayloadValidator payloadValidator;
+    private final MetricsRecorder metricsRecorder;
 
-    public GrpcShiftInboundAdapter(ShiftDataUseCase shiftDataUseCase, PayloadValidator payloadValidator) {
+    public GrpcShiftInboundAdapter(ShiftDataUseCase shiftDataUseCase, PayloadValidator payloadValidator,
+                                    MetricsRecorder metricsRecorder) {
         this.shiftDataUseCase = shiftDataUseCase;
         this.payloadValidator = payloadValidator;
+        this.metricsRecorder = metricsRecorder;
     }
 
     @Override
@@ -44,6 +48,7 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
         log.info("Recebendo chamada gRPC de conversao: {} -> {}",
                 grpcRequest.getSourceFormat(), grpcRequest.getTargetFormat());
 
+        long start = System.nanoTime();
         try {
             // 0. Sanitização de conteúdo: rejeita payloads acima do limite antes de qualquer parsing
             payloadValidator.validate(grpcRequest.getRawPayload());
@@ -66,6 +71,9 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
                     .setConvertedPayload(convertedData)
                     .build();
 
+            metricsRecorder.recordConversion(grpcRequest.getSourceFormat(), grpcRequest.getTargetFormat(),
+                    System.nanoTime() - start, true);
+
             // 4. Enviamos a resposta com sucesso (onNext) e fechamos a conexão (onCompleted)
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -73,6 +81,8 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
             log.info("Chamada gRPC concluída com sucesso.");
 
         } catch (IllegalArgumentException e) {
+            metricsRecorder.recordConversion(grpcRequest.getSourceFormat(), grpcRequest.getTargetFormat(),
+                    System.nanoTime() - start, false);
             // Tratamento de erro nível gRPC (Status.INVALID_ARGUMENT)
             log.warn("Payload ou formato invalido via gRPC: {}", e.getMessage());
             responseObserver.onError(Status.INVALID_ARGUMENT
@@ -80,6 +90,8 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
                     .asRuntimeException());
 
         } catch (Exception e) {
+            metricsRecorder.recordConversion(grpcRequest.getSourceFormat(), grpcRequest.getTargetFormat(),
+                    System.nanoTime() - start, false);
             // Erro interno (Status.INTERNAL)
             log.error("Erro critico interno processando chamada gRPC", e);
             responseObserver.onError(Status.INTERNAL
@@ -99,6 +111,7 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
     @Override
     public StreamObserver<ShiftGrpcRequestChunk> shiftDataStream(StreamObserver<ShiftGrpcResponseChunk> responseObserver) {
         return new StreamObserver<>() {
+            private final long start = System.nanoTime();
             private String sourceFormat;
             private String targetFormat;
             private String mappingProfile;
@@ -165,6 +178,8 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
                     ByteArrayOutputStream serialized = new ByteArrayOutputStream();
                     serializer.serialize(canonicalData, serialized);
 
+                    metricsRecorder.recordConversion(sourceFormat, targetFormat, System.nanoTime() - start, true);
+
                     writeInChunks(serialized.toByteArray(), responseObserver);
                     terminated = true;
                     responseObserver.onCompleted();
@@ -180,6 +195,7 @@ public class GrpcShiftInboundAdapter extends ShiftServiceGrpc.ShiftServiceImplBa
 
             private void fail(Status status, String description, Throwable cause) {
                 terminated = true;
+                metricsRecorder.recordConversion(sourceFormat, targetFormat, System.nanoTime() - start, false);
                 log.warn("Stream gRPC de entrada/saida encerrado com erro: {}", description);
                 Status withDescription = status.withDescription(description);
                 responseObserver.onError(
