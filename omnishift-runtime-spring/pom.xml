@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.github.gtvnv.omnishift</groupId>
+        <artifactId>omnishift-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>omnishift-runtime-spring</artifactId>
+    <packaging>jar</packaging>
+
+    <!--
+        Runtime executável: expõe o omnishift-core via REST e gRPC usando Spring Boot,
+        e monta os adapters de formato descobertos via SPI (ver OmniShiftConfig).
+    -->
+
+    <dependencies>
+        <dependency>
+            <groupId>br.com.github.gtvnv.omnishift</groupId>
+            <artifactId>omnishift-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>br.com.github.gtvnv.omnishift</groupId>
+            <artifactId>omnishift-grpc-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>br.com.github.gtvnv.omnishift</groupId>
+            <artifactId>omnishift-adapter-json</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>br.com.github.gtvnv.omnishift</groupId>
+            <artifactId>omnishift-adapter-xml</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-server-spring-boot-starter</artifactId>
+            <version>${grpc.spring.boot.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>omnishift-runtime</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>br.com.github.gtvnv.omnishift.OmniShiftApplication</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

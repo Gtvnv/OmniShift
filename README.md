@@ -15,6 +15,29 @@ O coração do OmniShift é o seu **Modelo Canônico (`OmniNode`)**. Ao invés d
 * **Outbound Adapters (Saída):** Jackson JSON, Jackson XML.
 * **Core (Domínio):** Regras de conversão e orquestração totalmente independentes de frameworks externos.
 
+### Módulos Maven
+
+O projeto é organizado como um multi-módulo Maven, para que o núcleo de domínio não dependa de nenhum framework e novos formatos possam ser adicionados como plugins isolados:
+
+| Módulo | Responsabilidade | Depende de |
+|---|---|---|
+| `omnishift-core` | Modelo canônico (`OmniNode`), portas (`DataParser`/`DataSerializer`), orquestração (`ShiftDataUseCase`). Zero dependência de Spring/Jackson. | — |
+| `omnishift-grpc-api` | Contrato gRPC (`.proto`) e stubs gerados — reutilizável por clientes em qualquer linguagem que fale Protobuf. | — |
+| `omnishift-adapter-json` | `DataParser`/`DataSerializer` de JSON via Jackson. | `omnishift-core` |
+| `omnishift-adapter-xml` | `DataParser`/`DataSerializer` de XML via Jackson. | `omnishift-core` |
+| `omnishift-runtime-spring` | Runtime executável: expõe o core via REST e gRPC (Spring Boot), montando os adapters descobertos automaticamente. | todos acima |
+
+Os adapters de formato **não são referenciados por nome** em nenhum lugar do código central: eles se registram via [Java SPI](https://docs.oracle.com/javase/tutorial/ext/basics/spi.html) (`META-INF/services`) e são descobertos em tempo de execução por `ParserFactory.discover()`/`SerializerFactory.discover()`.
+
+#### Como adicionar um novo formato
+
+1. Crie um módulo Maven novo (ex: `omnishift-adapter-sql`) dependendo apenas de `omnishift-core`.
+2. Implemente `DataParser` e/ou `DataSerializer` para o novo formato.
+3. Declare a implementação em `src/main/resources/META-INF/services/br.com.github.gtvnv.omnishift.domain.ports.DataParser` (e/ou `DataSerializer`).
+4. Adicione o novo módulo como dependência de `omnishift-runtime-spring`.
+
+Nenhuma classe central precisa ser editada para o novo formato passar a ser reconhecido pelos headers `X-Source-Format`/`X-Target-Format`.
+
 ---
 
 ## 🚀 Tecnologias Utilizadas
@@ -23,6 +46,7 @@ O coração do OmniShift é o seu **Modelo Canônico (`OmniNode`)**. Ao invés d
 * **Spring Boot 3.3**
 * **gRPC & Protobuf** (Comunicação de alta performance)
 * **Jackson** (Serialização de dados)
+* **JUnit 5** (Testes do `omnishift-core`)
 * **Maven**
 
 ---
@@ -36,21 +60,28 @@ O coração do OmniShift é o seu **Modelo Canônico (`OmniNode`)**. Ao invés d
 ---
 
 ### Compilação
-O projeto utiliza gRPC, portanto, uma compilação inicial é necessária para gerar as classes do Protobuf:
+O projeto é um multi-módulo Maven (reactor). O primeiro build precisa instalar os módulos internos (`omnishift-core`, `omnishift-grpc-api`, etc.) no repositório local antes que `omnishift-runtime-spring` consiga resolvê-los, e também é quando as classes do Protobuf são geradas:
 ```bash
-mvn clean compile
+mvn clean install
 ```
 
 ---
 
 ### Subindo a Aplicação
-Execute o projeto via Maven:
+Execute o módulo de runtime via Maven, a partir da raiz do projeto:
 
 ```bash
-mvn spring-boot:run
+mvn -pl omnishift-runtime-spring -am spring-boot:run
 ```
 
 O servidor será iniciado na porta padrão 8080 para REST e 9090 para chamadas gRPC.
+
+---
+
+### Rodando os Testes
+```bash
+mvn -pl omnishift-core -am test
+```
 
 ---
 
@@ -119,6 +150,34 @@ Content-Type: text/plain
   }
 }
 ```
+
+---
+
+## 🔀 Motor de Transformação (`TransformationEngine`)
+
+Além de converter formato, o `omnishift-core` já sabe reformatar a estrutura dos dados via `FieldMapping` (`sourcePath` → `targetPath`, com suporte a caminhos aninhados e índice de array na origem, ex: `itens[0].nome`). O resultado contém exclusivamente os campos mapeados (allow-list).
+
+### Perfis de mapeamento nomeados
+
+A API continua **agnóstica a dados**: o corpo da requisição nunca é envelopado para carregar instruções de mapeamento. Em vez disso, o cliente referencia um **perfil de mapeamento** pré-configurado no servidor:
+
+* **REST**: header opcional `X-Mapping-Profile: nome-do-perfil`.
+* **gRPC**: campo opcional `mapping_profile` na mensagem `ShiftGrpcRequest`.
+
+Os perfis são definidos em `application.yml` (módulo `omnishift-runtime-spring`):
+```yaml
+omnishift:
+  mapping-profiles:
+    perfil-cliente-legado:
+      - source-path: nome
+        target-path: fullName
+      - source-path: endereco.cidade
+        target-path: address.city
+```
+
+Sem o header/campo, o comportamento é o mesmo de sempre: só conversão de formato, sem reformatação. Se o perfil citado não existir, a API responde `400 Bad Request` (REST) ou `INVALID_ARGUMENT` (gRPC).
+
+**Trade-off assumido**: mapeamento não é ad-hoc por requisição — precisa estar pré-cadastrado no servidor. Em troca, sistemas heterogêneos só precisam conhecer o nome do perfil, nunca a sintaxe do DSL de mapeamento do OmniShift.
 
 ---
 

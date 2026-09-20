@@ -1,0 +1,15 @@
+
+server:
+  port: 9090
+
+# Perfis de mapeamento nomeados: o cliente referencia só o "nome-do-perfil"
+# (header X-Mapping-Profile no REST, campo mapping_profile no gRPC) — a definição
+# dos FieldMapping fica aqui, nunca na requisição. Exemplo:
+#
+# omnishift:
+#   mapping-profiles:
+#     perfil-cliente-legado:
+#       - source-path: nome
+#         target-path: fullName
+#       - source-path: endereco.cidade
+#         target-path: address.city
