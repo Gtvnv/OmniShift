@@ -74,6 +74,31 @@ class TransformationEngineTest {
     }
 
     @Test
+    void leIndicesEncadeadosNoMesmoSegmento() {
+        OmniObject input = new OmniObject();
+        OmniArray linha0 = new OmniArray();
+        linha0.add(new OmniValue("a"));
+        linha0.add(new OmniValue("b"));
+        OmniArray matriz = new OmniArray();
+        matriz.add(linha0);
+        input.put("matriz", matriz);
+
+        OmniNode result = engine.transform(input, List.of(new FieldMapping("matriz[0][1]", "destino")));
+
+        assertEquals("b", ((OmniValue) result.asObject().get("destino")).getValue());
+    }
+
+    @Test
+    void segmentoDeCaminhoInvalidoLancaDataShiftException() {
+        OmniObject input = new OmniObject();
+        input.put("a", new OmniValue("valor"));
+
+        List<FieldMapping> mappings = List.of(new FieldMapping("a[x]", "destino"));
+
+        assertThrows(DataShiftException.class, () -> engine.transform(input, mappings));
+    }
+
+    @Test
     void conflitoDeEscritaLancaDataShiftException() {
         OmniObject input = new OmniObject();
         input.put("a", new OmniValue("valorFolha"));

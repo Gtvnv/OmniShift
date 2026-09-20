@@ -23,9 +23,10 @@ O projeto é organizado como um multi-módulo Maven, para que o núcleo de domí
 |---|---|---|
 | `omnishift-core` | Modelo canônico (`OmniNode`), portas (`DataParser`/`DataSerializer`), orquestração (`ShiftDataUseCase`). Zero dependência de Spring/Jackson. | — |
 | `omnishift-grpc-api` | Contrato gRPC (`.proto`) e stubs gerados — reutilizável por clientes em qualquer linguagem que fale Protobuf. | — |
-| `omnishift-adapter-json` | `DataParser`/`DataSerializer` de JSON via Jackson. | `omnishift-core` |
-| `omnishift-adapter-xml` | `DataParser`/`DataSerializer` de XML via Jackson. | `omnishift-core` |
-| `omnishift-adapter-yaml` | `DataParser`/`DataSerializer` de YAML via Jackson. | `omnishift-core` |
+| `omnishift-adapter-jackson-common` | Conversão `OmniNode` ↔ `JsonNode`/`Object` compartilhada pelos três adapters abaixo (todos usam Jackson por baixo). Não implementa `DataParser`/`DataSerializer` nem se registra via SPI — existe só para eliminar duplicação entre os adapters. | `omnishift-core` |
+| `omnishift-adapter-json` | `DataParser`/`DataSerializer` de JSON via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
+| `omnishift-adapter-xml` | `DataParser`/`DataSerializer` de XML via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
+| `omnishift-adapter-yaml` | `DataParser`/`DataSerializer` de YAML via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
 | `omnishift-runtime-spring` | Runtime executável: expõe o core via REST e gRPC (Spring Boot), montando os adapters descobertos automaticamente. | todos acima |
 
 Os adapters de formato **não são referenciados por nome** em nenhum lugar do código central: eles se registram via [Java SPI](https://docs.oracle.com/javase/tutorial/ext/basics/spi.html) (`META-INF/services`) e são descobertos em tempo de execução por `ParserFactory.discover()`/`SerializerFactory.discover()`.

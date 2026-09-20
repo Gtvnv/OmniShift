@@ -21,6 +21,7 @@
     <modules>
         <module>omnishift-core</module>
         <module>omnishift-grpc-api</module>
+        <module>omnishift-adapter-jackson-common</module>
         <module>omnishift-adapter-json</module>
         <module>omnishift-adapter-xml</module>
         <module>omnishift-adapter-yaml</module>
@@ -51,6 +52,11 @@
             <dependency>
                 <groupId>br.com.github.gtvnv.omnishift</groupId>
                 <artifactId>omnishift-grpc-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.github.gtvnv.omnishift</groupId>
+                <artifactId>omnishift-adapter-jackson-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

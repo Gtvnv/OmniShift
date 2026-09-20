@@ -13,12 +13,14 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>omnishift-adapter-json</artifactId>
+    <artifactId>omnishift-adapter-jackson-common</artifactId>
     <packaging>jar</packaging>
 
     <!--
-        Adapter de formato JSON. Registra-se via Java SPI (META-INF/services)
-        para ser descoberto pelas factories do omnishift-core sem acoplamento direto.
+        Conversão OmniNode <-> com.fasterxml.jackson.databind.JsonNode/Object compartilhada
+        pelos adapters JSON, XML e YAML (todos usam Jackson por baixo). Existe para eliminar
+        a duplicação entre esses três adapters, não para ser um adapter de formato por si só
+        (não implementa DataParser/DataSerializer nem se registra via SPI).
     -->
 
     <dependencies>
@@ -27,12 +29,13 @@
             <artifactId>omnishift-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>br.com.github.gtvnv.omnishift</groupId>
-            <artifactId>omnishift-adapter-jackson-common</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

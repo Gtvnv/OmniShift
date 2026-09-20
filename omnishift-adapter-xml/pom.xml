@@ -27,6 +27,10 @@
             <artifactId>omnishift-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>br.com.github.gtvnv.omnishift</groupId>
+            <artifactId>omnishift-adapter-jackson-common</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-xml</artifactId>
         </dependency>

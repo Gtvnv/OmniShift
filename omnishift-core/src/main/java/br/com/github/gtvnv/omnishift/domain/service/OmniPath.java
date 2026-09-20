@@ -5,17 +5,11 @@ import br.com.github.gtvnv.omnishift.domain.model.OmniNode;
 import br.com.github.gtvnv.omnishift.domain.model.OmniNull;
 import br.com.github.gtvnv.omnishift.domain.model.OmniObject;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /**
  * Resolve e constrói caminhos estilo "a.b[0].c" sobre o modelo canônico (OmniNode).
  * Usado pelo TransformationEngine para aplicar FieldMapping.
  */
 final class OmniPath {
-
-    private static final Pattern SEGMENT = Pattern.compile("([^\\[\\]]+)((?:\\[\\d+])*)");
-    private static final Pattern INDEX = Pattern.compile("\\[(\\d+)]");
 
     private OmniPath() {
     }
@@ -32,21 +26,47 @@ final class OmniPath {
         return current;
     }
 
+    /**
+     * Parsing manual (sem regex) de propósito: um padrão como "(?:\[\d+])*" combina
+     * grupo repetido dentro de quantificador repetido, o que o motor de regex do Java
+     * resolve recursivamente e pode estourar a pilha em entradas patológicas longas.
+     */
     private static OmniNode readSegment(OmniNode current, String rawSegment) {
-        Matcher segmentMatcher = SEGMENT.matcher(rawSegment);
-        if (!segmentMatcher.matches()) {
+        int bracketStart = rawSegment.indexOf('[');
+        String key = bracketStart < 0 ? rawSegment : rawSegment.substring(0, bracketStart);
+        if (key.isEmpty() || key.indexOf(']') >= 0) {
             throw new DataShiftException("Segmento de caminho inválido: '" + rawSegment + "'");
         }
-
-        String key = segmentMatcher.group(1);
         current = current.isObject() ? current.asObject().get(key) : OmniNull.getInstance();
 
-        Matcher indexMatcher = INDEX.matcher(segmentMatcher.group(2));
-        while (indexMatcher.find()) {
-            int index = Integer.parseInt(indexMatcher.group(1));
-            current = current.isArray() ? current.asArray().get(index) : OmniNull.getInstance();
+        int pos = bracketStart;
+        while (pos >= 0) {
+            int bracketEnd = rawSegment.indexOf(']', pos);
+            String indexText = bracketEnd < 0 ? "" : rawSegment.substring(pos + 1, bracketEnd);
+            if (bracketEnd < 0 || indexText.isEmpty() || !isDigits(indexText)) {
+                throw new DataShiftException("Segmento de caminho inválido: '" + rawSegment + "'");
+            }
+            current = current.isArray() ? current.asArray().get(Integer.parseInt(indexText)) : OmniNull.getInstance();
+
+            int next = bracketEnd + 1;
+            if (next == rawSegment.length()) {
+                pos = -1;
+            } else if (rawSegment.charAt(next) == '[') {
+                pos = next;
+            } else {
+                throw new DataShiftException("Segmento de caminho inválido: '" + rawSegment + "'");
+            }
         }
         return current;
+    }
+
+    private static boolean isDigits(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            if (!Character.isDigit(text.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
