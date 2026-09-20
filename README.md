@@ -230,7 +230,7 @@ A API conta com um GlobalExceptionHandler configurado para mascarar rastros de i
 * **Limite de tamanho**: `PayloadValidator` rejeita (`400 Bad Request` / `INVALID_ARGUMENT`) qualquer payload acima de 1.000.000 caracteres, tanto no REST quanto no gRPC, antes de qualquer parsing.
 * **XXE (XML External Entity)**: o adapter XML desabilita DTD por completo no `XMLInputFactory` usado pelo Jackson — bloqueia tanto entidades externas (leitura de arquivos locais/SSRF) quanto expansão de entidade interna ("billion laughs").
 * **Profundidade de aninhamento**: os três adapters (JSON/XML/YAML) configuram `StreamReadConstraints` com limite explícito de 500 níveis, para não depender do default implícito do Jackson e evitar `StackOverflowError` em payloads profundamente aninhados.
-* **Follow-up conhecido, não implementado**: o SnakeYAML por trás do adapter YAML tem proteção própria contra expansão de alias/anchor ("YAML bomb", `LoaderOptions.setMaxAliasesForCollections`) que ainda não foi configurada explicitamente aqui.
+* **"YAML bomb" (expansão de alias/anchor)**: verificado empiricamente (testes em `JacksonYamlParserTest`) que o parser YAML do Jackson usado aqui é baseado em eventos, sem a fase de "compose" completa do SnakeYAML — `&ancora`, `*alias` e merge keys (`<<`) chegam como texto literal (o nome da âncora), nunca são expandidos para a estrutura referenciada. Não há, portanto, superfície para o ataque clássico de expansão exponencial via aliases neste adapter; a suspeita anterior de que isso precisaria de `LoaderOptions.setMaxAliasesForCollections` não se confirmou ao testar contra o parser real.
 
 ---
 
