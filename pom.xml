@@ -25,6 +25,7 @@
         <module>omnishift-adapter-json</module>
         <module>omnishift-adapter-xml</module>
         <module>omnishift-adapter-yaml</module>
+        <module>omnishift-adapter-csv</module>
         <module>omnishift-runtime-spring</module>
     </modules>
 
@@ -72,6 +73,11 @@
             <dependency>
                 <groupId>br.com.github.gtvnv.omnishift</groupId>
                 <artifactId>omnishift-adapter-yaml</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.github.gtvnv.omnishift</groupId>
+                <artifactId>omnishift-adapter-csv</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

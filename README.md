@@ -12,7 +12,7 @@ O OmniShift é um middleware de alta performance desenhado para orquestrar e tra
 O coração do OmniShift é o seu **Modelo Canônico (`OmniNode`)**. Ao invés de converter um formato diretamente para outro (ex: JSON para XML), o sistema traduz qualquer formato de entrada para uma árvore de objetos em memória, e depois serializa essa árvore para o formato de saída desejado.
 
 * **Inbound Adapters (Entrada):** REST (Spring Web), gRPC.
-* **Outbound Adapters (Saída):** Jackson JSON, Jackson XML.
+* **Outbound Adapters (Saída):** Jackson JSON, Jackson XML, Jackson YAML, Apache Commons CSV.
 * **Core (Domínio):** Regras de conversão e orquestração totalmente independentes de frameworks externos.
 
 ### Módulos Maven
@@ -27,6 +27,7 @@ O projeto é organizado como um multi-módulo Maven, para que o núcleo de domí
 | `omnishift-adapter-json` | `DataParser`/`DataSerializer` de JSON via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
 | `omnishift-adapter-xml` | `DataParser`/`DataSerializer` de XML via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
 | `omnishift-adapter-yaml` | `DataParser`/`DataSerializer` de YAML via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
+| `omnishift-adapter-csv` | `DataParser`/`DataSerializer` de CSV via Apache Commons CSV. Não usa Jackson (CSV é tabular, não passa por `JsonNode`). | `omnishift-core` |
 | `omnishift-runtime-spring` | Runtime executável: expõe o core via REST e gRPC (Spring Boot), montando os adapters descobertos automaticamente. | todos acima |
 
 Os adapters de formato **não são referenciados por nome** em nenhum lugar do código central: eles se registram via [Java SPI](https://docs.oracle.com/javase/tutorial/ext/basics/spi.html) (`META-INF/services`) e são descobertos em tempo de execução por `ParserFactory.discover()`/`SerializerFactory.discover()`.
@@ -184,6 +185,33 @@ usuario:
 
 ---
 
+### Exemplo 4: Conversão JSON ➡️ CSV
+
+CSV é tabular, não uma árvore — a convenção do OmniShift é: o nível raiz deve ser um **array de objetos "flat"** (sem valores aninhados), cada objeto vira uma linha, e o cabeçalho é a união das chaves de todos os objetos. Nenhuma inferência de tipo acontece na leitura (todo valor CSV é lido como texto puro).
+
+* **Requisição**:
+```http
+POST /api/v1/shift HTTP/1.1
+Host: localhost:8080
+X-Source-Format: JSON
+X-Target-Format: CSV
+Content-Type: text/plain
+
+[
+  { "nome": "Gustavo Tavera", "idade": 20 },
+  { "nome": "Zenith Code", "cidade": "Recife" }
+]
+```
+
+### Resposta
+```csv
+nome,idade,cidade
+Gustavo Tavera,20,
+Zenith Code,,Recife
+```
+
+---
+
 ## 🔀 Motor de Transformação (`TransformationEngine`)
 
 Além de converter formato, o `omnishift-core` já sabe reformatar a estrutura dos dados via `FieldMapping` (`sourcePath` → `targetPath`, com suporte a caminhos aninhados e índice de array na origem, ex: `itens[0].nome`). O resultado contém exclusivamente os campos mapeados (allow-list).
@@ -264,6 +292,7 @@ A API conta com um GlobalExceptionHandler configurado para mascarar rastros de i
 * **XXE (XML External Entity)**: o adapter XML desabilita DTD por completo no `XMLInputFactory` usado pelo Jackson — bloqueia tanto entidades externas (leitura de arquivos locais/SSRF) quanto expansão de entidade interna ("billion laughs").
 * **Profundidade de aninhamento**: os três adapters (JSON/XML/YAML) configuram `StreamReadConstraints` com limite explícito de 500 níveis, para não depender do default implícito do Jackson e evitar `StackOverflowError` em payloads profundamente aninhados.
 * **"YAML bomb" (expansão de alias/anchor)**: verificado empiricamente (testes em `JacksonYamlParserTest`) que o parser YAML do Jackson usado aqui é baseado em eventos, sem a fase de "compose" completa do SnakeYAML — `&ancora`, `*alias` e merge keys (`<<`) chegam como texto literal (o nome da âncora), nunca são expandidos para a estrutura referenciada. Não há, portanto, superfície para o ataque clássico de expansão exponencial via aliases neste adapter; a suspeita anterior de que isso precisaria de `LoaderOptions.setMaxAliasesForCollections` não se confirmou ao testar contra o parser real.
+* **CSV Injection (Formula Injection)**: `CsvSerializer` prefixa com `'` qualquer célula cujo primeiro caractere seja `=`, `+`, `-`, `@`, TAB ou CR (recomendação da OWASP Cheat Sheet Series) — sem essa mitigação, uma célula desses arquivos poderia ser interpretada como fórmula pelo Excel/Google Sheets ao abrir o CSV exportado, um vetor real de RCE/exfiltração. Testado com um payload malicioso de verdade (`=cmd|'/c calc'!A1`).
 
 ---
 
