@@ -82,6 +82,17 @@ O servidor será iniciado na porta padrão 8080 para REST e 9090 para chamadas g
 
 ---
 
+### Rodando via Docker
+
+O `Dockerfile` é multi-stage: compila o reactor completo dentro do próprio container (não depende de um `target/` pré-existente no host) e a imagem final só carrega o JRE, rodando como usuário não-root.
+
+```bash
+docker build -t omnishift .
+docker run -p 8080:8080 -p 9090:9090 omnishift
+```
+
+---
+
 ### Rodando os Testes
 ```bash
 mvn -pl omnishift-core -am test
