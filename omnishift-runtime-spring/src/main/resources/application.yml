@@ -26,3 +26,12 @@ management:
 #         target-path: fullName
 #       - source-path: endereco.cidade
 #         target-path: address.city
+
+# Chaves de API por cliente: sem nenhuma chave configurada, toda requisição (exceto
+# /actuator/health) é rejeitada com 401/UNAUTHENTICATED — seguro por padrão. Exemplo:
+#
+# omnishift:
+#   security:
+#     api-keys:
+#       cliente-a: "troque-por-uma-chave-secreta-de-verdade"
+#       cliente-b: "outra-chave-secreta-por-cliente"

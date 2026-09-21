@@ -19,7 +19,7 @@ import java.util.List;
  * são descobertos automaticamente via META-INF/services.
  */
 @Configuration
-@EnableConfigurationProperties(MappingProfilesProperties.class)
+@EnableConfigurationProperties({MappingProfilesProperties.class, ApiKeyProperties.class})
 public class OmniShiftConfig {
 
     @Bean

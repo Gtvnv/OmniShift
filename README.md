@@ -103,6 +103,8 @@ mvn -pl omnishift-core -am test
 ## 🧪 Testando a Aplicação (REST)
 O OmniShift utiliza cabeçalhos HTTP (Headers) para identificar dinamicamente os formatos de origem e destino, mantendo o payload (corpo da requisição) limpo.
 
+> **Toda requisição abaixo precisa do header `X-Api-Key`** (exceto `/actuator/health`) — ver [🔑 Autenticação](#-autenticação). Sem nenhuma chave configurada em `omnishift.security.api-keys`, a API rejeita tudo com `401`, seguro por padrão. Os exemplos abaixo omitem o header por brevidade.
+
 ### Exemplo 1: Conversão JSON ➡️ XML
 
 * **Requisição**:
@@ -320,9 +322,35 @@ Gravada nos três canais de entrada (REST, gRPC unário, gRPC streaming) no pont
 
 **Limite de escopo, documentado de propósito**: para REST e `ShiftDataStream`, a métrica cobre parse+transform+resolução do serializer — não inclui a escrita final do stream de saída (que não pode falhar por causa de input do usuário, por design das Fases 6/7). Para a RPC unária `ShiftData`, cobre a conversão completa, porque ali é tudo um método só.
 
+**Nota pós-autenticação**: só `/actuator/health` fica de fora da exigência de `X-Api-Key` (ver [🔑 Autenticação](#-autenticação) abaixo) — um Prometheus fazendo scrape de `/actuator/prometheus` precisa estar configurado para enviar o header, senão recebe `401`.
+
 A porta de observabilidade (`MetricsRecorder`, em `omnishift-core/domain/ports`) segue o mesmo padrão já usado para `MappingProfileRepository`: interface livre de framework no core, implementação real (`MicrometerMetricsRecorder`) em `omnishift-runtime-spring`.
 
 **Nota de correção**: `application.yml` tinha `server.port: 9090`, o que colidia com a porta padrão do próprio gRPC (também 9090, já que `grpc.server.port` nunca tinha sido definido explicitamente) — REST e gRPC disputavam a mesma porta na inicialização. Corrigido nesta fase: REST volta para 8080 (default do Spring Boot), gRPC fica explícito em 9090.
+
+---
+
+## 🔑 Autenticação
+
+Toda requisição precisa de uma API key válida — **exceto `/actuator/health`** (senão o `HEALTHCHECK` do `Dockerfile` e sondas de liveness/readiness de orquestrador quebram). Sem nenhuma chave configurada, a API rejeita tudo por padrão (seguro por padrão, não "aberto até alguém lembrar de fechar").
+
+* **REST**: header `X-Api-Key: <chave>`.
+* **gRPC**: metadata `x-api-key: <chave>`.
+
+Chaves são configuradas por cliente em `application.yml` (mesmo padrão dos perfis de mapeamento nomeados — nome do cliente fica só no servidor, nunca precisa ser enviado pelo cliente):
+```yaml
+omnishift:
+  security:
+    api-keys:
+      cliente-a: "troque-por-uma-chave-secreta-de-verdade"
+      cliente-b: "outra-chave-secreta-por-cliente"
+```
+
+Chave ausente ou inválida → `401 Unauthorized` (REST, mesmo formato de erro do `GlobalExceptionHandler`) / `UNAUTHENTICATED` (gRPC), antes de qualquer parsing ou lógica de conversão.
+
+**Por que não Spring Security**: não existe suporte nativo a "API Key" no Spring Security do jeito que existe pra Basic/OAuth2/JWT — um filtro customizado seria necessário de qualquer forma. Para um esquema de segredo compartilhado simples, um `jakarta.servlet.Filter` (REST) e um `ServerInterceptor` (gRPC) direto, sem a dependência extra, é proporcional ao problema. Se entrar OAuth2/JWT/RBAC de verdade no futuro, aí vale a pena migrar.
+
+A comparação de chave usa `MessageDigest.isEqual` (tempo constante), não `.equals()`, para não vazar via timing quantos caracteres da chave bateram — mesmo padrão de rigor já aplicado em XXE, CSV Injection e SQL Injection.
 
 ---
 
