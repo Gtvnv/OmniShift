@@ -1,0 +1,4 @@
+br.com.github.gtvnv.omnishift.infrastructure.adapters.outbound.sql.MySqlInsertSerializer
+br.com.github.gtvnv.omnishift.infrastructure.adapters.outbound.sql.PostgreSqlInsertSerializer
+br.com.github.gtvnv.omnishift.infrastructure.adapters.outbound.sql.OracleInsertSerializer
+br.com.github.gtvnv.omnishift.infrastructure.adapters.outbound.sql.SqlServerInsertSerializer

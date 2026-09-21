@@ -28,6 +28,7 @@ O projeto é organizado como um multi-módulo Maven, para que o núcleo de domí
 | `omnishift-adapter-xml` | `DataParser`/`DataSerializer` de XML via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
 | `omnishift-adapter-yaml` | `DataParser`/`DataSerializer` de YAML via Jackson. | `omnishift-core`, `omnishift-adapter-jackson-common` |
 | `omnishift-adapter-csv` | `DataParser`/`DataSerializer` de CSV via Apache Commons CSV. Não usa Jackson (CSV é tabular, não passa por `JsonNode`). | `omnishift-core` |
+| `omnishift-adapter-sql` | Só `DataSerializer` (gera SQL, não interpreta) — um por dialeto (`SQL_MYSQL`/`SQL_POSTGRESQL`/`SQL_ORACLE`/`SQL_SQLSERVER`), gerando `INSERT`. Sem dependência externa. | `omnishift-core` |
 | `omnishift-runtime-spring` | Runtime executável: expõe o core via REST e gRPC (Spring Boot), montando os adapters descobertos automaticamente. | todos acima |
 
 Os adapters de formato **não são referenciados por nome** em nenhum lugar do código central: eles se registram via [Java SPI](https://docs.oracle.com/javase/tutorial/ext/basics/spi.html) (`META-INF/services`) e são descobertos em tempo de execução por `ParserFactory.discover()`/`SerializerFactory.discover()`.
@@ -212,6 +213,37 @@ Zenith Code,,Recife
 
 ---
 
+### Exemplo 5: Conversão JSON ➡️ SQL (MySQL)
+
+SQL não é uma árvore nem uma tabela — é geração de texto, e um `INSERT` não existe sem tabela alvo. Por isso o formato SQL exige uma forma própria na raiz: `{ "table": "...", "rows": [...] }` (cada elemento de `rows` é uma linha, mesma regra do CSV: sem valor aninhado numa célula). Dialetos suportados como formatos de destino separados: `SQL_MYSQL`, `SQL_POSTGRESQL`, `SQL_ORACLE`, `SQL_SQLSERVER` — só geração (`X-Source-Format: SQL_*` não existe, não há parser de volta).
+
+* **Requisição**:
+```http
+POST /api/v1/shift HTTP/1.1
+Host: localhost:8080
+X-Source-Format: JSON
+X-Target-Format: SQL_MYSQL
+Content-Type: text/plain
+
+{
+  "table": "usuarios",
+  "rows": [
+    { "nome": "Gustavo Tavera", "idade": 20, "ativo": true },
+    { "nome": "Zenith Code", "idade": 5, "ativo": false }
+  ]
+}
+```
+
+### Resposta
+```sql
+INSERT INTO `usuarios` (`nome`, `idade`, `ativo`) VALUES ('Gustavo Tavera', 20, TRUE);
+INSERT INTO `usuarios` (`nome`, `idade`, `ativo`) VALUES ('Zenith Code', 5, FALSE);
+```
+
+Trocando `X-Target-Format` para `SQL_ORACLE` ou `SQL_SQLSERVER`, o mesmo payload sai com `"usuarios"`/`[usuarios]` (quoting de identificador) e `1`/`0` no lugar de `TRUE`/`FALSE` (nenhum dos dois tem tipo boolean nativo). Um `INSERT` por linha sempre — nunca `VALUES (...), (...)` numa instrução só, porque Oracle não suporta multi-row `VALUES`.
+
+---
+
 ## 🔀 Motor de Transformação (`TransformationEngine`)
 
 Além de converter formato, o `omnishift-core` já sabe reformatar a estrutura dos dados via `FieldMapping` (`sourcePath` → `targetPath`, com suporte a caminhos aninhados e índice de array na origem, ex: `itens[0].nome`). O resultado contém exclusivamente os campos mapeados (allow-list).
@@ -293,6 +325,7 @@ A API conta com um GlobalExceptionHandler configurado para mascarar rastros de i
 * **Profundidade de aninhamento**: os três adapters (JSON/XML/YAML) configuram `StreamReadConstraints` com limite explícito de 500 níveis, para não depender do default implícito do Jackson e evitar `StackOverflowError` em payloads profundamente aninhados.
 * **"YAML bomb" (expansão de alias/anchor)**: verificado empiricamente (testes em `JacksonYamlParserTest`) que o parser YAML do Jackson usado aqui é baseado em eventos, sem a fase de "compose" completa do SnakeYAML — `&ancora`, `*alias` e merge keys (`<<`) chegam como texto literal (o nome da âncora), nunca são expandidos para a estrutura referenciada. Não há, portanto, superfície para o ataque clássico de expansão exponencial via aliases neste adapter; a suspeita anterior de que isso precisaria de `LoaderOptions.setMaxAliasesForCollections` não se confirmou ao testar contra o parser real.
 * **CSV Injection (Formula Injection)**: `CsvSerializer` prefixa com `'` qualquer célula cujo primeiro caractere seja `=`, `+`, `-`, `@`, TAB ou CR (recomendação da OWASP Cheat Sheet Series) — sem essa mitigação, uma célula desses arquivos poderia ser interpretada como fórmula pelo Excel/Google Sheets ao abrir o CSV exportado, um vetor real de RCE/exfiltração. Testado com um payload malicioso de verdade (`=cmd|'/c calc'!A1`).
+* **SQL Injection**: gerar texto SQL a partir de dado não confiável é o cenário clássico de injeção se o escaping estiver errado. `SqlInsertSerializer` escapa todo valor string dobrando aspas simples (`'` → `''`, padrão ANSI que funciona nos 4 dialetos — não usa barra invertida, que é específico do MySQL e quebra sob `NO_BACKSLASH_ESCAPES`/`ANSI_QUOTES`) e todo identificador (tabela/coluna) dobrando o caractere de quoting do próprio dialeto. Números nunca vêm de string bruta do cliente quando a origem tem tipo (JSON/XML/YAML); quando a origem é CSV (sem inferência de tipo), um valor "numérico" passa pelo caminho de string entre aspas — mais verboso, mas seguro por construção. Testado com payloads maliciosos reais em valor (`x'); DROP TABLE usuarios; --`) e em nome de coluna, verificando a string SQL exata gerada.
 
 ---
 

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.github.gtvnv.omnishift</groupId>
+        <artifactId>omnishift-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>omnishift-adapter-sql</artifactId>
+    <packaging>jar</packaging>
+
+    <!--
+        Adapter de geração de SQL (INSERT), não conexão a banco de verdade. Só
+        DataSerializer, um por dialeto (MySQL/PostgreSQL/Oracle/SQL Server), registrados
+        via Java SPI. Sem DataParser: o escopo é gerar SQL, não interpretá-lo de volta.
+        Sem dependência externa: escaping SQL aqui é um replace() de uma linha.
+    -->
+
+    <dependencies>
+        <dependency>
+            <groupId>br.com.github.gtvnv.omnishift</groupId>
+            <artifactId>omnishift-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
