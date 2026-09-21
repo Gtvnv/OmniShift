@@ -380,6 +380,7 @@ A API conta com um GlobalExceptionHandler configurado para mascarar rastros de i
 
 <br/><br/>
 
+[![CI](https://github.com/Gtvnv/OmniShift/actions/workflows/ci.yml/badge.svg)](https://github.com/Gtvnv/OmniShift/actions/workflows/ci.yml)
 [![Arquitetura Limpa](https://img.shields.io/badge/Design-Clean_Architecture-blue)](#)
 [![Java 21](https://img.shields.io/badge/Powered_by-Java_21-orange)](#)
 [![Status](https://img.shields.io/badge/Status-Alpha_v1-success)](#)
